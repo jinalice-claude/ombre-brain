@@ -1946,6 +1946,34 @@ async def api_public_breath(request):
     except Exception as e:
         logger.error(f"api_public_breath error: {e}")
         return JSONResponse({"error": str(e)}, status_code=500, headers={"Access-Control-Allow-Origin": "*"})
+
+@mcp.custom_route("/api/public/list", methods=["GET", "OPTIONS"])
+async def api_public_list(request):
+    from starlette.responses import JSONResponse, Response
+    if request.method == "OPTIONS":
+        r = Response()
+        r.headers["Access-Control-Allow-Origin"] = "*"
+        r.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        r.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        return r
+    try:
+        tag = request.query_params.get("tag", "")
+        all_buckets = await bucket_mgr.list_all(include_archive=False)
+        result = []
+        for b in all_buckets:
+            tags = b.get("metadata", {}).get("tags", [])
+            if tag and tag not in tags:
+                continue
+            result.append({
+                "id": b["id"],
+                "content": b.get("content", ""),
+                "tags": tags,
+                "created": b.get("metadata", {}).get("created", ""),
+            })
+        result.sort(key=lambda x: x["created"], reverse=True)
+        return JSONResponse(result, headers={"Access-Control-Allow-Origin": "*"})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500, headers={"Access-Control-Allow-Origin": "*"})
         # --- Entry point / 启动入口 ---
 if __name__ == "__main__":
     transport = config.get("transport", "stdio")
