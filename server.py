@@ -1905,35 +1905,47 @@ async def api_system_status(request):
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
-@mcp.custom_route("/api/public/hold", methods=["POST"])
+@mcp.custom_route("/api/public/hold", methods=["POST", "OPTIONS"])
 async def api_public_hold(request):
-    from starlette.responses import JSONResponse
+    from starlette.responses import JSONResponse, Response
+    if request.method == "OPTIONS":
+        r = Response()
+        r.headers["Access-Control-Allow-Origin"] = "*"
+        r.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        r.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        return r
     try:
         body = await request.json()
         content = body.get("content", "")
         tags = body.get("tags", "")
         importance = int(body.get("importance", 5))
         if not content:
-            return JSONResponse({"error": "empty"}, status_code=400)
+            return JSONResponse({"error": "empty"}, status_code=400, headers={"Access-Control-Allow-Origin": "*"})
         result = await hold(content=content, tags=tags, importance=importance)
-        return JSONResponse({"ok": True, "result": result})
+        return JSONResponse({"ok": True, "result": result}, headers={"Access-Control-Allow-Origin": "*"})
     except Exception as e:
         logger.error(f"api_public_hold error: {e}")
-        return JSONResponse({"error": str(e)}, status_code=500)
+        return JSONResponse({"error": str(e)}, status_code=500, headers={"Access-Control-Allow-Origin": "*"})
 
 
-@mcp.custom_route("/api/public/breath", methods=["POST"])
+@mcp.custom_route("/api/public/breath", methods=["POST", "OPTIONS"])
 async def api_public_breath(request):
-    from starlette.responses import JSONResponse
+    from starlette.responses import JSONResponse, Response
+    if request.method == "OPTIONS":
+        r = Response()
+        r.headers["Access-Control-Allow-Origin"] = "*"
+        r.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        r.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        return r
     try:
         body = await request.json()
         query = body.get("query", "")
         max_tokens = int(body.get("max_tokens", 6000))
         result = await breath(query=query, max_tokens=max_tokens)
-        return JSONResponse({"ok": True, "result": result})
+        return JSONResponse({"ok": True, "result": result}, headers={"Access-Control-Allow-Origin": "*"})
     except Exception as e:
         logger.error(f"api_public_breath error: {e}")
-        return JSONResponse({"error": str(e)}, status_code=500)
+        return JSONResponse({"error": str(e)}, status_code=500, headers={"Access-Control-Allow-Origin": "*"})
         # --- Entry point / 启动入口 ---
 if __name__ == "__main__":
     transport = config.get("transport", "stdio")
