@@ -1918,6 +1918,7 @@ async def api_public_hold(request):
         result = await hold(content=content, tags=tags, importance=importance)
         return JSONResponse({"ok": True, "result": result})
     except Exception as e:
+        logger.error(f"api_public_hold error: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
@@ -1931,6 +1932,7 @@ async def api_public_breath(request):
         result = await breath(query=query, max_tokens=max_tokens)
         return JSONResponse({"ok": True, "result": result})
     except Exception as e:
+        logger.error(f"api_public_breath error: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)
         # --- Entry point / 启动入口 ---
 if __name__ == "__main__":
