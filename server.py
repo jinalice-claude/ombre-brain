@@ -1905,7 +1905,34 @@ async def api_system_status(request):
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
-# --- Entry point / 启动入口 ---
+@mcp.custom_route("/api/public/hold", methods=["POST"])
+async def api_public_hold(request):
+    from starlette.responses import JSONResponse
+    try:
+        body = await request.json()
+        content = body.get("content", "")
+        tags = body.get("tags", "")
+        importance = int(body.get("importance", 5))
+        if not content:
+            return JSONResponse({"error": "empty"}, status_code=400)
+        result = await hold(content=content, tags=tags, importance=importance)
+        return JSONResponse({"ok": True, "result": result})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@mcp.custom_route("/api/public/breath", methods=["POST"])
+async def api_public_breath(request):
+    from starlette.responses import JSONResponse
+    try:
+        body = await request.json()
+        query = body.get("query", "")
+        max_tokens = int(body.get("max_tokens", 6000))
+        result = await breath(query=query, max_tokens=max_tokens)
+        return JSONResponse({"ok": True, "result": result})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+        # --- Entry point / 启动入口 ---
 if __name__ == "__main__":
     transport = config.get("transport", "stdio")
     logger.info(f"Ombre Brain starting | transport: {transport}")
