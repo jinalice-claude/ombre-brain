@@ -637,8 +637,6 @@ for b in candidates:
         dynamic_results.append(...)
         token_budget -= summary_tokens
     except Exception as e:
-        logger.warning(...)
-       except Exception as e:
         logger.warning(f"Failed to dehydrate surfaced bucket / 浮现脱水失败: {e}")
         summary = strip_wikilinks(b["content"])
         dynamic_results.append(f"[权重:{decay_engine.calculate_score(b['metadata']):.2f}] [bucket_id:{b['id']}] {summary}")
