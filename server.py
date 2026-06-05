@@ -559,7 +559,7 @@ async def breath(
             if b["metadata"].get("pinned") or b["metadata"].get("protected")
         ]
         pinned_results = []
-for b in pinned_buckets:
+        for b in pinned_buckets:
             try:
                 clean_meta = {k: v for k, v in b["metadata"].items() if k != "tags"}
                 summary = await dehydrator.dehydrate(strip_wikilinks(b["content"]), clean_meta)
