@@ -560,13 +560,13 @@ async def breath(
         ]
         pinned_results = []
         for b in pinned_buckets:
-            try:
-                clean_meta = {k: v for k, v in b["metadata"].items() if k != "tags"}
-                summary = await dehydrator.dehydrate(strip_wikilinks(b["content"]), clean_meta)
-                pinned_results.append(f"📌 [核心准则] [bucket_id:{b['id']}] {summary}")
-            except Exception as e:
-                logger.warning(f"Failed to dehydrate pinned bucket / 钉选桶脱水失败: {e}")
-                continue
+    try:
+        clean_meta = {k: v for k, v in b["metadata"].items() if k != "tags"}
+        summary = await dehydrator.dehydrate(strip_wikilinks(b["content"]), clean_meta)
+    except Exception as e:
+        logger.warning(f"Failed to dehydrate pinned bucket / 钉选桶脱水失败: {e}")
+        summary = strip_wikilinks(b["content"])  # 兜底用原始内容
+    pinned_results.append(f"📌 [核心准则] [bucket_id:{b['id']}] {summary}")
 
         # --- Unresolved buckets: surface top N by weight ---
         # --- 未解决桶：按权重浮现前 N 条 ---
@@ -626,26 +626,23 @@ async def breath(
         # Hard cap: never surface more than max_results buckets
         candidates = candidates[:max_results]
 
-        dynamic_results = []
-        for b in candidates:
-            if token_budget <= 0:
-                break
-            try:
-                clean_meta = {k: v for k, v in b["metadata"].items() if k != "tags"}
-                summary = await dehydrator.dehydrate(strip_wikilinks(b["content"]), clean_meta)
-                summary_tokens = count_tokens_approx(summary)
-                if summary_tokens > token_budget:
-                    break
-                # NOTE: no touch() here — surfacing should NOT reset decay timer
-                score = decay_engine.calculate_score(b["metadata"])
-                dynamic_results.append(f"[权重:{score:.2f}] [bucket_id:{b['id']}] {summary}")
-                token_budget -= summary_tokens
-            except Exception as e:
-                logger.warning(f"Failed to dehydrate surfaced bucket / 浮现脱水失败: {e}")
-                continue
-
-        if not pinned_results and not dynamic_results:
-            return "权重池平静，没有需要处理的记忆。"
+     dynamic_results = []
+for b in candidates:
+    if token_budget <= 0:
+        break
+    try:
+        ...
+        summary = await dehydrator.dehydrate(...)
+        ...
+        dynamic_results.append(...)
+        token_budget -= summary_tokens
+    except Exception as e:
+        logger.warning(...)
+       except Exception as e:
+        logger.warning(f"Failed to dehydrate surfaced bucket / 浮现脱水失败: {e}")
+        summary = strip_wikilinks(b["content"])
+        dynamic_results.append(f"[权重:{decay_engine.calculate_score(b['metadata']):.2f}] [bucket_id:{b['id']}] {summary}")
+        token_budget -= count_tokens_approx(summary)
 
         parts = []
         if pinned_results:
