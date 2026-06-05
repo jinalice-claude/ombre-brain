@@ -559,7 +559,7 @@ async def breath(
             if b["metadata"].get("pinned") or b["metadata"].get("protected")
         ]
         pinned_results = []
-         for b in pinned_buckets:
+for b in pinned_buckets:
             try:
                 clean_meta = {k: v for k, v in b["metadata"].items() if k != "tags"}
                 summary = await dehydrator.dehydrate(strip_wikilinks(b["content"]), clean_meta)
@@ -567,7 +567,7 @@ async def breath(
                 logger.warning(f"Failed to dehydrate pinned bucket / 钉选桶脱水失败: {e}")
                 summary = strip_wikilinks(b["content"])
             pinned_results.append(f"📌 [核心准则] [bucket_id:{b['id']}] {summary}")
-
+             
         # --- Unresolved buckets: surface top N by weight ---
         # --- 未解决桶：按权重浮现前 N 条 ---
         unresolved = [
