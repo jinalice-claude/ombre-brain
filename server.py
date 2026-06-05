@@ -626,21 +626,24 @@ async def breath(
         # Hard cap: never surface more than max_results buckets
         candidates = candidates[:max_results]
 
-     dynamic_results = []
-     for b in candidates:
-    if token_budget <= 0:
-        break
-    try:
-        ...
-        summary = await dehydrator.dehydrate(...)
-        ...
-        dynamic_results.append(...)
-        token_budget -= summary_tokens
-    except Exception as e:
-        logger.warning(f"Failed to dehydrate surfaced bucket / 浮现脱水失败: {e}")
-        summary = strip_wikilinks(b["content"])
-        dynamic_results.append(f"[权重:{decay_engine.calculate_score(b['metadata']):.2f}] [bucket_id:{b['id']}] {summary}")
-        token_budget -= count_tokens_approx(summary)
+        dynamic_results = []
+        for b in candidates:
+            if token_budget <= 0:
+                break
+            try:
+                clean_meta = {k: v for k, v in b["metadata"].items() if k != "tags"}
+                summary = await dehydrator.dehydrate(strip_wikilinks(b["content"]), clean_meta)
+                summary_tokens = count_tokens_approx(summary)
+                if summary_tokens > token_budget:
+                    break
+                score = decay_engine.calculate_score(b["metadata"])
+                dynamic_results.append(f"[权重:{score:.2f}] [bucket_id:{b['id']}] {summary}")
+                token_budget -= summary_tokens
+            except Exception as e:
+                logger.warning(f"Failed to dehydrate surfaced bucket / 浮现脱水失败: {e}")
+                summary = strip_wikilinks(b["content"])
+                dynamic_results.append(f"[权重:{decay_engine.calculate_score(b['metadata']):.2f}] [bucket_id:{b['id']}] {summary}")
+                token_budget -= count_tokens_approx(summary)
 
         parts = []
         if pinned_results:
