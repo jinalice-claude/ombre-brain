@@ -1994,6 +1994,26 @@ async def api_public_delete(request):
         return JSONResponse({"ok": True}, headers={"Access-Control-Allow-Origin": "*"})
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500, headers={"Access-Control-Allow-Origin": "*"})
+        
+ @mcp.custom_route("/api/public/update", methods=["POST", "OPTIONS"])
+async def api_public_update(request):
+    from starlette.responses import JSONResponse, Response
+    if request.method == "OPTIONS":
+        r = Response()
+        r.headers["Access-Control-Allow-Origin"] = "*"
+        r.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        r.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        return r
+    try:
+        body = await request.json()
+        bucket_id = body.get("bucket_id", "")
+        content = body.get("content", "")
+        if not bucket_id or not content:
+            return JSONResponse({"error": "missing fields"}, status_code=400, headers={"Access-Control-Allow-Origin": "*"})
+        await bucket_mgr.update(bucket_id, content=content)
+        return JSONResponse({"ok": True}, headers={"Access-Control-Allow-Origin": "*"})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500, headers={"Access-Control-Allow-Origin": "*"})
         # --- Entry point / 启动入口 ---
 if __name__ == "__main__":
     transport = config.get("transport", "stdio")
