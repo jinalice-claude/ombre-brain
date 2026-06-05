@@ -627,7 +627,7 @@ async def breath(
         candidates = candidates[:max_results]
 
      dynamic_results = []
-for b in candidates:
+        for b in candidates:
     if token_budget <= 0:
         break
     try:
