@@ -1973,7 +1973,7 @@ async def api_public_list(request):
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500, headers={"Access-Control-Allow-Origin": "*"})
         
-        @mcp.custom_route("/api/public/delete", methods=["POST", "OPTIONS"])
+@mcp.custom_route("/api/public/delete", methods=["POST", "OPTIONS"])
 async def api_public_delete(request):
     from starlette.responses import JSONResponse, Response
     if request.method == "OPTIONS":
