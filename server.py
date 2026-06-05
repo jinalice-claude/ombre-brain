@@ -565,7 +565,7 @@ async def breath(
                 summary = await dehydrator.dehydrate(strip_wikilinks(b["content"]), clean_meta)
             except Exception as e:
                 logger.warning(f"Failed to dehydrate pinned bucket / 钉选桶脱水失败: {e}")
-                summary = strip_wikilinks(b["content"])  # 兜底用原始内容
+                summary = strip_wikilinks(b["content"])
             pinned_results.append(f"📌 [核心准则] [bucket_id:{b['id']}] {summary}")
 
         # --- Unresolved buckets: surface top N by weight ---
