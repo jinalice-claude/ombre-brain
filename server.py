@@ -77,6 +77,10 @@ except ValueError:
 OMBRE_HOOK_URL = os.environ.get("OMBRE_HOOK_URL", "").strip()
 OMBRE_HOOK_SKIP = os.environ.get("OMBRE_HOOK_SKIP", "").strip().lower() in ("1", "true", "yes", "on")
 
+# OMBRE_PUBLIC_TOKEN: 前端访问 /api/public/* 时需在 X-Public-Token 请求头携带的共享密钥。
+# 留空则公开接口全部返回 503，强制要求配置。
+PUBLIC_API_TOKEN = os.environ.get("OMBRE_PUBLIC_TOKEN", "").strip()
+
 
 async def _fire_webhook(event: str, payload: dict) -> None:
     """
@@ -199,6 +203,25 @@ def _require_auth(request):
         return JSONResponse(
             {"error": "Unauthorized", "setup_needed": _is_setup_needed()},
             status_code=401,
+        )
+    return None
+
+
+def _require_public_token(request):
+    """Return error JSONResponse if X-Public-Token is missing or wrong, else None."""
+    from starlette.responses import JSONResponse
+    if not PUBLIC_API_TOKEN:
+        return JSONResponse(
+            {"error": "Public API is not configured on this server"},
+            status_code=503,
+            headers={"Access-Control-Allow-Origin": "*"},
+        )
+    token = request.headers.get("X-Public-Token", "")
+    if not hmac.compare_digest(token, PUBLIC_API_TOKEN):
+        return JSONResponse(
+            {"error": "Unauthorized"},
+            status_code=401,
+            headers={"Access-Control-Allow-Origin": "*"},
         )
     return None
 
@@ -1910,8 +1933,11 @@ async def api_public_hold(request):
         r = Response()
         r.headers["Access-Control-Allow-Origin"] = "*"
         r.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-        r.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        r.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Public-Token"
         return r
+    auth_err = _require_public_token(request)
+    if auth_err:
+        return auth_err
     try:
         body = await request.json()
         content = body.get("content", "")
@@ -1933,8 +1959,11 @@ async def api_public_breath(request):
         r = Response()
         r.headers["Access-Control-Allow-Origin"] = "*"
         r.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-        r.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        r.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Public-Token"
         return r
+    auth_err = _require_public_token(request)
+    if auth_err:
+        return auth_err
     try:
         body = await request.json()
         query = body.get("query", "")
@@ -1952,8 +1981,11 @@ async def api_public_list(request):
         r = Response()
         r.headers["Access-Control-Allow-Origin"] = "*"
         r.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-        r.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        r.headers["Access-Control-Allow-Headers"] = "X-Public-Token"
         return r
+    auth_err = _require_public_token(request)
+    if auth_err:
+        return auth_err
     try:
         tag = request.query_params.get("tag", "")
         all_buckets = await bucket_mgr.list_all(include_archive=False)
@@ -1980,17 +2012,19 @@ async def api_public_delete(request):
         r = Response()
         r.headers["Access-Control-Allow-Origin"] = "*"
         r.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-        r.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        r.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Public-Token"
         return r
+    auth_err = _require_public_token(request)
+    if auth_err:
+        return auth_err
     try:
         body = await request.json()
         bucket_id = body.get("bucket_id", "")
         if not bucket_id:
             return JSONResponse({"error": "missing bucket_id"}, status_code=400, headers={"Access-Control-Allow-Origin": "*"})
-        file_path = bucket_mgr._find_bucket_file(bucket_id)
-        if not file_path:
+        result = await trace(bucket_id=bucket_id, delete=True)
+        if "not found" in str(result).lower():
             return JSONResponse({"error": "not found"}, status_code=404, headers={"Access-Control-Allow-Origin": "*"})
-        os.remove(file_path)
         return JSONResponse({"ok": True}, headers={"Access-Control-Allow-Origin": "*"})
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500, headers={"Access-Control-Allow-Origin": "*"})
@@ -2002,8 +2036,11 @@ async def api_public_update(request):
         r = Response()
         r.headers["Access-Control-Allow-Origin"] = "*"
         r.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-        r.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        r.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Public-Token"
         return r
+    auth_err = _require_public_token(request)
+    if auth_err:
+        return auth_err
     try:
         body = await request.json()
         bucket_id = body.get("bucket_id", "")
