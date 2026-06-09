@@ -81,6 +81,9 @@ OMBRE_HOOK_SKIP = os.environ.get("OMBRE_HOOK_SKIP", "").strip().lower() in ("1",
 # 留空则公开接口全部返回 503，强制要求配置。
 PUBLIC_API_TOKEN = os.environ.get("OMBRE_PUBLIC_TOKEN", "").strip()
 
+# ElevenLabs Cove voice ID (used by /api/public/tts)
+COVE_VOICE_ID = "dANrAVjrqr8FrYBGY3x4"
+
 
 async def _fire_webhook(event: str, payload: dict) -> None:
     """
@@ -2051,6 +2054,47 @@ async def api_public_update(request):
         return JSONResponse({"ok": True}, headers={"Access-Control-Allow-Origin": "*"})
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500, headers={"Access-Control-Allow-Origin": "*"})
+
+
+@mcp.custom_route("/api/public/tts", methods=["POST", "OPTIONS"])
+async def api_public_tts(request):
+    from starlette.responses import JSONResponse, Response
+    if request.method == "OPTIONS":
+        r = Response()
+        r.headers["Access-Control-Allow-Origin"] = "*"
+        r.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        r.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Public-Token"
+        return r
+    auth_err = _require_public_token(request)
+    if auth_err:
+        return auth_err
+    try:
+        body = await request.json()
+        text = body.get("text", "")
+        if not text:
+            return JSONResponse({"error": "text is required"}, status_code=400, headers={"Access-Control-Allow-Origin": "*"})
+        if len(text) > 5000:
+            return JSONResponse({"error": "text too long"}, status_code=400, headers={"Access-Control-Allow-Origin": "*"})
+        api_key = os.environ["ELEVENLABS_API_KEY"]
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{COVE_VOICE_ID}"
+        payload = {"text": text, "model_id": "eleven_multilingual_v2"}
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(url, json=payload, headers={"xi-api-key": api_key})
+        if resp.status_code == 200:
+            return Response(
+                content=resp.content,
+                media_type="audio/mpeg",
+                headers={"Access-Control-Allow-Origin": "*"},
+            )
+        return JSONResponse(
+            {"error": "ElevenLabs error", "status": resp.status_code, "detail": resp.text},
+            status_code=resp.status_code,
+            headers={"Access-Control-Allow-Origin": "*"},
+        )
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500, headers={"Access-Control-Allow-Origin": "*"})
+
+
         # --- Entry point / 启动入口 ---
 if __name__ == "__main__":
     transport = config.get("transport", "stdio")
