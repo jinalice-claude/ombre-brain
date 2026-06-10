@@ -2121,7 +2121,9 @@ async def api_public_plan(request):
                 text = f.read()
         except FileNotFoundError:
             text = "信箱是空的"
-        return PlainTextResponse(text, headers={"Access-Control-Allow-Origin": "*"})
+        # no-store: mobile fetch proxies ignore query params and may cache the first (empty) response
+        # 禁止缓存：手机端抓取代理会忽略 query 参数并缓存第一次（空信箱）的响应
+        return PlainTextResponse(text, headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "no-cache, no-store, must-revalidate"})
 
     auth_err = _require_public_token(request)
     if auth_err:

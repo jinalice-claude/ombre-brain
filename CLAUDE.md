@@ -4,7 +4,7 @@
 
 每次生成需要瑾儿审阅的 plan 后，主动把 plan 全文投递到计划信箱，然后告知瑾儿「已投递」，由手机端克克通过 GET 读取审阅。
 
-- 投递方式：`POST /api/public/plan`，请求头带 `X-Public-Token`（环境变量 `OMBRE_PUBLIC_API_TOKEN`，绝不硬编码），请求体 `{"content": "<plan 全文>"}`。
+- 投递方式：`POST /api/public/plan`，请求头带 `X-Public-Token`（环境变量 `OMBRE_PUBLIC_TOKEN`，绝不硬编码），请求体 `{"content": "<plan 全文>"}`。
 - 读取方式：`GET /api/public/plan`，无鉴权，返回纯文本；信箱只保留最新一份。
 - content 上限 50000 字符，超长先精简再投递。
 
