@@ -2095,6 +2095,53 @@ async def api_public_tts(request):
         return JSONResponse({"error": str(e)}, status_code=500, headers={"Access-Control-Allow-Origin": "*"})
 
 
+@mcp.custom_route("/api/public/plan", methods=["GET", "POST", "OPTIONS"])
+async def api_public_plan(request):
+    """Plan mailbox: POST (token-protected) writes the latest plan,
+    GET (open, plain text) reads it for mobile review.
+    计划信箱：POST（带 token）投递最新 plan，GET（无鉴权纯文本）供手机端读取审阅。
+    """
+    from starlette.responses import JSONResponse, PlainTextResponse, Response
+    # Stored under mailbox/ subdir so bucket scans (permanent/dynamic/archive/feel only) never see it
+    # 放在 mailbox/ 子目录下，桶管理器只扫四个固定子目录，不会误读
+    plan_path = os.path.join(config["buckets_dir"], "mailbox", "latest_plan.txt")
+
+    if request.method == "OPTIONS":
+        r = Response()
+        r.headers["Access-Control-Allow-Origin"] = "*"
+        r.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        r.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Public-Token"
+        return r
+
+    if request.method == "GET":
+        # No auth: mobile web_fetch cannot send headers; content is a single latest plan, no secrets
+        # 无鉴权：手机端 web_fetch 带不了 header；内容只有最新一份施工计划，不含密钥
+        try:
+            with open(plan_path, "r", encoding="utf-8") as f:
+                text = f.read()
+        except FileNotFoundError:
+            text = "信箱是空的"
+        return PlainTextResponse(text, headers={"Access-Control-Allow-Origin": "*"})
+
+    auth_err = _require_public_token(request)
+    if auth_err:
+        return auth_err
+    try:
+        body = await request.json()
+        content = body.get("content", "")
+        if not content:
+            return JSONResponse({"error": "content is required"}, status_code=400, headers={"Access-Control-Allow-Origin": "*"})
+        if len(content) > 50000:
+            return JSONResponse({"error": "content too long (max 50000 chars)"}, status_code=400, headers={"Access-Control-Allow-Origin": "*"})
+        os.makedirs(os.path.dirname(plan_path), exist_ok=True)
+        with open(plan_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return JSONResponse({"ok": True, "length": len(content)}, headers={"Access-Control-Allow-Origin": "*"})
+    except Exception as e:
+        logger.error(f"api_public_plan error: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500, headers={"Access-Control-Allow-Origin": "*"})
+
+
         # --- Entry point / 启动入口 ---
 if __name__ == "__main__":
     transport = config.get("transport", "stdio")
