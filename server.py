@@ -2096,6 +2096,9 @@ async def api_public_tts(request):
 
 
 @mcp.custom_route("/api/public/plan", methods=["GET", "POST", "OPTIONS"])
+# Alias path: mobile fetch proxy pinned a stale cached response for /plan and normalizes away query params, so reads go through a fresh path
+# 别名路径：手机端抓取代理把 /plan 的旧响应钉死在缓存里且会归一化掉 query 参数，读取改走全新路径绕开
+@mcp.custom_route("/api/public/mailbox", methods=["GET", "OPTIONS"], name="api_public_mailbox")
 async def api_public_plan(request):
     """Plan mailbox: POST (token-protected) writes the latest plan,
     GET (open, plain text) reads it for mobile review.
