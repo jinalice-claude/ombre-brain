@@ -41,6 +41,8 @@ import hashlib
 import hmac
 import secrets
 import time
+import uuid
+import threading
 import json as _json_lib
 import httpx
 
@@ -2145,6 +2147,117 @@ async def api_public_plan(request):
     except Exception as e:
         logger.error(f"api_public_plan error: {e}")
         return JSONResponse({"error": str(e)}, status_code=500, headers={"Access-Control-Allow-Origin": "*"})
+
+
+# Guards the read-modify-write cycle on chirps.json so concurrent POSTs can't interleave
+# 锁住 chirps.json 的读-改-写全程，并发 POST 不会互相覆盖
+_chirps_lock = threading.Lock()
+
+
+@mcp.custom_route("/api/public/chirps", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+async def api_public_chirps(request):
+    """Chirps: GET returns all one-liners newest-first, POST appends one (max 140 chars),
+    PUT edits text by id (ts unchanged), DELETE removes by id. id travels in the JSON body.
+    叽叽喳喳：GET 按时间倒序返回全部，POST 追加一条（≤140 字），
+    PUT 按 id 改文字（ts 不动），DELETE 按 id 删除。id 都放 JSON body 里。
+    """
+    from starlette.responses import JSONResponse, Response
+    from datetime import datetime, timezone
+
+    # Volume root, alongside quirks.txt; bucket scans only read the fixed subdirs so this is never misread
+    # 持久卷根目录，与 quirks.txt 同目录；桶扫描只看固定子目录，不会误读
+    chirps_path = os.path.join(config["buckets_dir"], "chirps.json")
+    cors = {"Access-Control-Allow-Origin": "*"}
+
+    if request.method == "OPTIONS":
+        r = Response()
+        r.headers["Access-Control-Allow-Origin"] = "*"
+        r.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        r.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Public-Token"
+        return r
+
+    auth_err = _require_public_token(request)
+    if auth_err:
+        return auth_err
+
+    def _read_chirps():
+        try:
+            with open(chirps_path, "r", encoding="utf-8") as f:
+                return _json_lib.load(f)
+        except FileNotFoundError:
+            return []
+
+    def _write_chirps(data):
+        # Write to a temp file then os.replace: atomic, a crash mid-write never corrupts the data
+        # 先写临时文件再 os.replace 原子替换，写到一半崩溃也不会损坏正式文件
+        tmp_path = chirps_path + ".tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            _json_lib.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, chirps_path)
+
+    def _validate_text(body):
+        """Return (text, error_response): shared POST/PUT text rules. 共用的文字校验。"""
+        text = str(body.get("text", "")).strip()
+        if not text:
+            return None, JSONResponse({"error": "text is required"}, status_code=400, headers=cors)
+        if len(text) > 140:
+            return None, JSONResponse({"error": "text too long (max 140 chars)"}, status_code=400, headers=cors)
+        return text, None
+
+    try:
+        if request.method == "GET":
+            with _chirps_lock:
+                chirps = _read_chirps()
+            chirps.sort(key=lambda c: c.get("ts", ""), reverse=True)
+            return JSONResponse(chirps, headers=cors)
+
+        body = await request.json()
+
+        if request.method == "POST":
+            text, err = _validate_text(body)
+            if err:
+                return err
+            entry = {
+                "id": uuid.uuid4().hex[:12],
+                "text": text,
+                "ts": datetime.now(timezone.utc).isoformat(),
+            }
+            with _chirps_lock:
+                chirps = _read_chirps()
+                chirps.append(entry)
+                _write_chirps(chirps)
+            return JSONResponse(entry, headers=cors)
+
+        chirp_id = str(body.get("id", "")).strip()
+        if not chirp_id:
+            return JSONResponse({"error": "id is required"}, status_code=400, headers=cors)
+
+        if request.method == "PUT":
+            text, err = _validate_text(body)
+            if err:
+                return err
+            with _chirps_lock:
+                chirps = _read_chirps()
+                target = next((c for c in chirps if c.get("id") == chirp_id), None)
+                if target is None:
+                    return JSONResponse({"error": "chirp not found"}, status_code=404, headers=cors)
+                # ts stays: editing the words doesn't move the day it landed
+                # ts 不动：改字不改它落下的那一天
+                target["text"] = text
+                _write_chirps(chirps)
+            return JSONResponse(target, headers=cors)
+
+        # DELETE
+        with _chirps_lock:
+            chirps = _read_chirps()
+            remaining = [c for c in chirps if c.get("id") != chirp_id]
+            if len(remaining) == len(chirps):
+                return JSONResponse({"error": "chirp not found"}, status_code=404, headers=cors)
+            _write_chirps(remaining)
+        return JSONResponse({"ok": True}, headers=cors)
+    except Exception as e:
+        logger.error(f"api_public_chirps error: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500, headers=cors)
 
 
         # --- Entry point / 启动入口 ---
