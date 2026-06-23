@@ -24,7 +24,8 @@ httpx>=0.27.0
 
 # 向量相似度计算 (导入模式/聚类)
 numpy>=1.24.0
-scikit-learn>=1.2.0
+# scikit-learn 已移除：grep 全 src/ 无任何 import（死依赖），且会拉 ~45MB scipy。
+# 将来上游若真用到再补回 `scikit-learn>=1.2.0`。
 
 # BM25 稀疏检索 + 中文分词（软依赖，缺包时自动降级）
 rank-bm25>=0.2.2

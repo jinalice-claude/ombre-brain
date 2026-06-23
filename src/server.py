@@ -1587,6 +1587,10 @@ _tools_runtime.init(
     mark_op=_mark_op,
 )
 
+# --- 注册对外公开 HTTP API（自定义层 /api/public/*，见 public_api.py）---
+import public_api
+public_api.register(mcp)
+
 
 # =============================================================
 # MCP tools — thin registration wrappers
