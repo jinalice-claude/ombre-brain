@@ -2009,7 +2009,39 @@ async def api_public_list(request):
         return JSONResponse(result, headers={"Access-Control-Allow-Origin": "*"})
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500, headers={"Access-Control-Allow-Origin": "*"})
-        
+
+@mcp.custom_route("/api/public/export", methods=["GET", "OPTIONS"])
+async def api_public_export(request):
+    """只读全量导出：把 buckets_dir 整个打包成 tar.gz 返回。仅备份用。"""
+    from starlette.responses import Response, JSONResponse
+    if request.method == "OPTIONS":
+        r = Response()
+        r.headers["Access-Control-Allow-Origin"] = "*"
+        r.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        r.headers["Access-Control-Allow-Headers"] = "X-Public-Token"
+        return r
+    auth_err = _require_public_token(request)
+    if auth_err:
+        return auth_err
+    try:
+        import io, tarfile
+        base_dir = bucket_mgr.base_dir
+        buf = io.BytesIO()
+        with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+            tar.add(base_dir, arcname="buckets")
+        return Response(
+            content=buf.getvalue(),
+            media_type="application/gzip",
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Content-Disposition": "attachment; filename=ombre-buckets.tar.gz",
+            },
+        )
+    except Exception as e:
+        logger.error(f"api_public_export error: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500,
+                            headers={"Access-Control-Allow-Origin": "*"})
+
 @mcp.custom_route("/api/public/delete", methods=["POST", "OPTIONS"])
 async def api_public_delete(request):
     from starlette.responses import JSONResponse, Response
