@@ -53,6 +53,26 @@
 ### 未处理原因
 瑾儿要先单独评估 A / B 两种解法的利弊与副作用后再决定，B7 当天不动。
 
+### 上游 v3 是否已修（2026-07-16 只读排查 upstream/main）
+
+**结论：v3 已针对这个问题做了专门修复**，思路很值得借鉴，且不必合并整个 v3。
+
+修复在 v3 的 `src/bucket_manager.py`（仍是传统 bucket_manager 那套的增量改进，**不在** kernel/eventsourcing/policy 等微内核模块里，移植成本低）。作者注释原话就点了同一根因：「因加权分被各维度稀释到 fuzzy_threshold 以下而整条搜不到」。
+
+核心机制叫 **literal_hit 召回保障**（`_LITERAL_MATCH_BONUS = 25.0`）：
+1. 把查询串原样（lowercase）在 `name + tags + domain + 正文` 拼成的文本里做子串匹配：`literal_hit = q_norm in hay`。
+2. 命中后**双管齐下**：
+   - **无条件放行**：判定改成 `text_match = normalized >= fuzzy_threshold OR literal_hit` —— 用 OR 短路，字面命中就召回，**不再依赖加权分过阈值**（正好绕开 name×3 被 hex 白占、分数被稀释的困境）。
+   - **排序加分**：`normalized += 25`，让字面命中的桶在结果里排得靠前。
+3. 另外并联了**语义召回**：`semantic_match = semantic_score >= 0.65`，与 text_match 取 OR。但这条依赖 embedding，红线关闭时用不上——**对我们有价值的是 literal_hit 那条，它纯文本层面工作，与红线保护不冲突**。
+
+**相对我两种候选解法的关系**：
+- v3 的 literal_hit 比「解法 A（降 fuzzy_threshold）」更精准——A 是全局降门槛、会连带抬高误召回；literal_hit 只对「用户显式搜的词原样命中」放行，噪音更可控。
+- 也比「解法 B（回填 name 标题）」成本低——不用批量改 82 桶数据、不碰红线桶，只改打分函数一段逻辑。
+- 可以只借这段思路移植到 migrate-2.0.3（约十几行：literal_hit 判定 + OR 放行 + bonus 常量），**不合并 v3**。这实际上是「解法 C」，下次评估时应作为首选候选。
+
+（未处理，仅记录供下次接续；若决定不自己改，也可把「literal_hit 思路本就是原作者 v3 里的方案」这点反馈回去，确认能否 backport 到非 v3 线。）
+
 ---
 
 ## 2. 待核实是否回归：decay_engine stopped / 关键配置显示未设
